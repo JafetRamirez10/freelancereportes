@@ -1,0 +1,39 @@
+---
+description: Seguridad obligatoria Laravel/Filament (validación, IDOR, uploads, secretos)
+alwaysApply: true
+---
+
+# Seguridad
+
+Todo dato de usuario, archivo, query string o formulario es no confiable hasta validarlo y autorizarlo en backend.
+
+## Entrada y mass assignment
+
+- Form Requests o validación en Actions. Nunca `Model::create($request->all())`.
+- `$fillable` explícito. No `$guarded = []` en usuarios, pagos, permisos.
+- Nunca aceptar desde formulario: `role`, `is_admin`, `evidence_path` sin autorización de backend.
+- `evidence_path` solo lo escribe el Action de upload, no el request.
+
+## Autorización e IDOR
+
+- Policies + Filament `canViewAny`. Ocultar botones no basta.
+- Nunca `Model::findOrFail($id)` si cualquier autenticado puede pasar cualquier ID sin Policy.
+- `exists:` no implica autorización.
+
+## SQL, XSS, CSRF, archivos
+
+- Eloquent/Query Builder con bindings. Nunca concatenar SQL ni `DB::raw` con input.
+- Blade `{{ }}`. Nunca `{!! !!}` con datos de usuario. No SVG (XSS).
+- No desactivar CSRF. Rate limit en login.
+- Uploads: MIME real, extensión, tamaño, `store()` (nombre generado), no ejecutables.
+- Evidencia: jpeg/png/webp/pdf, max 5MB, disco privado (`local`), no `public/`.
+
+## Datos sensibles y dinero
+
+- Contraseñas con Hash/cast `hashed`. Nunca loguear passwords, tokens ni secretos.
+- Credenciales solo en `.env` vía `config()`. `.env` fuera de git. `APP_DEBUG=false` en prod.
+- Dinero: `DECIMAL(15,2)`, nunca `float`. Totales desde BD, no desde el frontend.
+
+## Checklist antes de terminar
+
+Entrada validada, autorización, mass assignment, SQL parametrizado, output escapado, CSRF, uploads, secretos, transacciones, errores internos no expuestos.

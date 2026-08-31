@@ -1,0 +1,35 @@
+---
+description: PHP moderno, SOLID práctico, nombres cortos en inglés, Actions/Services
+alwaysApply: true
+---
+
+# Estilo y SOLID
+
+```php
+<?php
+
+declare(strict_types=1);
+```
+
+PSR-12. Tipos explícitos. `final class` si no está diseñada para extenderse.
+
+## Nombres
+
+Inglés en código. Cortos y claros: `$user`, `$sale`, `$qty`, `$path`, `$req`. Evitar `$a`, `$tmp1` y nombres kilométricos.
+
+Métodos pequeños, una tarea, early return. Preferir extraer si pasa de ~40 líneas.
+
+## SOLID con sentido
+
+- Una clase, una responsabilidad (no SaleService que también envía mail y cobra).
+- Interfaces solo con varias implementaciones reales.
+- DI de Laravel. No `new SmtpMailer()` dentro de la lógica.
+- No Repository por defecto. Eloquent basta.
+- No DTO para cada form trivial. Actions para una operación (`StoreSale`, `SendChargeReminder`).
+- Services cuando agrupen un dominio (métricas del dashboard).
+
+## Prioridad
+
+Seguridad > correctitud > legibilidad > mantenibilidad > simplicidad > rendimiento > líneas.
+
+Cambio mínimo que resuelva. No romper APIs, rutas ni tests. No eliminar Policies/validación “para simplificar”.

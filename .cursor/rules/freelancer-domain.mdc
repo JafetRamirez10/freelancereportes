@@ -1,0 +1,38 @@
+---
+description: Dominio freelancer (servicios, ventas, clientes, compras, dashboard USD, recordatorios)
+alwaysApply: true
+---
+
+# Dominio freelancer
+
+Panel interno en `/admin`. UI en español. Código en inglés. Moneda **USD ($)**.
+
+## Semillas
+
+- Servicios: **Hosting**, **Software**, **Diseño web** (`default_amount` 0.00 hasta que el admin lo edite).
+- Un administrador. Credenciales semilla solo desde `.env` / `config()`, nunca en git.
+
+## Autorización
+
+Fase 1: un administrador autenticado. Policies en todos los modelos de negocio. El request no asigna `evidence_path` ni `user_id`.
+
+## Dashboard
+
+Default: **mes actual** (`from` = primer día, `to` = último). Filtro de fechas.
+
+KPIs: ingresos (SUM ventas por `sold_at`), gastos (SUM compras por `purchased_at`), ganancia neta (ingresos − gastos). Agregados en `DashboardMetrics`, no en el Widget. Cache por `from:to`; invalidar al crear/editar/borrar venta o compra.
+
+## Ventas y recurrencia
+
+- Fecha `sold_at` puede ser anterior. Monto editable (default = costo del tipo de servicio).
+- Recurrencia opcional: intervalo `monthly` o `yearly`. El sistema **solo avisa**; el cobro se registra como nueva venta.
+- `next_charge_at`: `sold_at + 1 month|year`, editable.
+- Avisos por correo al admin: 30 días y 7 días antes de `next_charge_at`. Jobs idempotentes (`charge_reminders` unique).
+
+## Evidencia
+
+Opcional en ventas y compras. Disco privado, jpeg/png/webp/pdf, max 5MB, `store()` con nombre generado. Descarga autenticada.
+
+## Dinero
+
+`DECIMAL(15,2)`. Nunca float. Totales desde SQL. Helper `Money` para parse/format `$`.

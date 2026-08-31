@@ -1,0 +1,35 @@
+---
+description: Convenciones Laravel y Filament (controllers, Policies, Resources, queries, tests, Pint)
+alwaysApply: true
+---
+
+# Laravel + Filament
+
+Preferir APIs nativas de Laravel y Filament. No instalar paquetes si el framework ya resuelve el problema. No Spatie Permission salvo que roles en BD + Policies no baste.
+
+## Controllers y Forms
+
+- Controllers pequeños: request, authorize, validate, llamar Action/Service, responder.
+- Form Requests para store/update importantes.
+- Policies por ServiceType, Client, Sale, Purchase, User.
+
+## Filament
+
+- Cada Resource: `canViewAny`/`canCreate`/etc. alineados a Policies.
+- `getEloquentQuery()` limitado por Policy (no solo UI).
+- Actions sensibles: `visible()` + `abort_unless(can())` en el backend.
+- Separar Resource/Pages/Schemas si el archivo crece demasiado.
+- Relation Managers con autorización propia.
+
+## Queries y jobs
+
+- Eager load para evitar N+1. No `get()` masivo: `paginate`/`chunk`.
+- Índices en WHERE/JOIN frecuentes. Foreign keys explícitas.
+- Nunca editar migraciones ya ejecutadas en producción.
+- Jobs de email idempotentes. Queue para correos de aviso.
+
+## Tests y estilo
+
+- Tests de autorización, validación, métricas, recordatorios, uploads.
+- Código generado compatible con Pint (`./vendor/bin/pint`).
+- UI en español. Código (clases, variables, rutas) en inglés.
