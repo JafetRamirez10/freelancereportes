@@ -42,7 +42,12 @@ final class DashboardMetrics
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{
+     *     income: string,
+     *     expense: string,
+     *     net: string,
+     *     series: array{labels: list<string>, income: list<string>, expense: list<string>}
+     * }
      */
     public function all(): array
     {
@@ -58,25 +63,48 @@ final class DashboardMetrics
         }
 
         $ttl = (int) config('freelancer.dashboard.cache_seconds', 300);
-        $remember = fn (): array => Cache::remember($key, $ttl, fn (): array => $this->compute());
 
         try {
-            return Cache::lock($key.':lock', 25)->block(20, $remember);
+            $cached = Cache::get($key);
+            if ($this->isFreshPayload($cached)) {
+                return $cached;
+            }
+
+            $fresh = $this->compute();
+            Cache::put($key, $fresh, $ttl);
+
+            return $fresh;
         } catch (\Throwable) {
-            return $remember();
+            return $this->compute();
         }
     }
 
+    private function isFreshPayload(mixed $cached): bool
+    {
+        return is_array($cached)
+            && ! array_key_exists('recent', $cached)
+            && isset($cached['income'], $cached['expense'], $cached['net'], $cached['series'])
+            && is_array($cached['series']);
+    }
+
     /**
-     * @return array<string, mixed>
+     * @return array{
+     *     income: string,
+     *     expense: string,
+     *     net: string,
+     *     series: array{labels: list<string>, income: list<string>, expense: list<string>}
+     * }
      */
     private function compute(): array
     {
+        $from = $this->from->toDateString();
+        $to = $this->to->toDateString();
+
         $income = number_format((float) Sale::query()
-            ->whereBetween('sold_at', [$this->from->toDateString(), $this->to->toDateString()])
+            ->whereBetween('sold_at', [$from, $to])
             ->sum('amount'), 2, '.', '');
         $expense = number_format((float) Purchase::query()
-            ->whereBetween('purchased_at', [$this->from->toDateString(), $this->to->toDateString()])
+            ->whereBetween('purchased_at', [$from, $to])
             ->sum('amount'), 2, '.', '');
         $net = number_format((float) $income - (float) $expense, 2, '.', '');
 
@@ -85,21 +113,11 @@ final class DashboardMetrics
             ? $this->monthlySeries()
             : $this->dailySeries();
 
-        $limit = (int) config('freelancer.dashboard.recent_sales_limit', 10);
-        $recent = Sale::query()
-            ->with(['client', 'serviceType'])
-            ->whereBetween('sold_at', [$this->from->toDateString(), $this->to->toDateString()])
-            ->orderByDesc('sold_at')
-            ->orderByDesc('id')
-            ->limit($limit)
-            ->get();
-
         return [
             'income' => $income,
             'expense' => $expense,
             'net' => $net,
             'series' => $series,
-            'recent' => $recent,
         ];
     }
 
@@ -108,18 +126,23 @@ final class DashboardMetrics
      */
     private function dailySeries(): array
     {
+        $from = $this->from->toDateString();
+        $to = $this->to->toDateString();
+        $daySql = $this->dateSql('sold_at');
+        $purchaseDaySql = $this->dateSql('purchased_at');
+
         $income = Sale::query()
-            ->whereBetween('sold_at', [$this->from->toDateString(), $this->to->toDateString()])
-            ->selectRaw('sold_at as day')
+            ->whereBetween('sold_at', [$from, $to])
+            ->selectRaw($daySql.' as day')
             ->selectRaw('COALESCE(SUM(amount), 0) as total')
-            ->groupBy('sold_at')
+            ->groupByRaw($daySql)
             ->pluck('total', 'day');
 
         $expense = Purchase::query()
-            ->whereBetween('purchased_at', [$this->from->toDateString(), $this->to->toDateString()])
-            ->selectRaw('purchased_at as day')
+            ->whereBetween('purchased_at', [$from, $to])
+            ->selectRaw($purchaseDaySql.' as day')
             ->selectRaw('COALESCE(SUM(amount), 0) as total')
-            ->groupBy('purchased_at')
+            ->groupByRaw($purchaseDaySql)
             ->pluck('total', 'day');
 
         $labels = [];
@@ -129,8 +152,8 @@ final class DashboardMetrics
         for ($date = $this->from; $date->lte($this->to); $date = $date->addDay()) {
             $key = $date->toDateString();
             $labels[] = $date->format('d/m');
-            $incomeSeries[] = number_format((float) ($income[$key] ?? 0), 2, '.', '');
-            $expenseSeries[] = number_format((float) ($expense[$key] ?? 0), 2, '.', '');
+            $incomeSeries[] = number_format((float) ($income[$key] ?? $income[$key.' 00:00:00'] ?? 0), 2, '.', '');
+            $expenseSeries[] = number_format((float) ($expense[$key] ?? $expense[$key.' 00:00:00'] ?? 0), 2, '.', '');
         }
 
         return [
@@ -145,18 +168,20 @@ final class DashboardMetrics
      */
     private function monthlySeries(): array
     {
+        $from = $this->from->toDateString();
+        $to = $this->to->toDateString();
         $incomeSql = $this->yearMonthSql('sold_at');
         $expenseSql = $this->yearMonthSql('purchased_at');
 
         $income = Sale::query()
-            ->whereBetween('sold_at', [$this->from->toDateString(), $this->to->toDateString()])
+            ->whereBetween('sold_at', [$from, $to])
             ->selectRaw($incomeSql.' as bucket')
             ->selectRaw('COALESCE(SUM(amount), 0) as total')
             ->groupByRaw($incomeSql)
             ->pluck('total', 'bucket');
 
         $expense = Purchase::query()
-            ->whereBetween('purchased_at', [$this->from->toDateString(), $this->to->toDateString()])
+            ->whereBetween('purchased_at', [$from, $to])
             ->selectRaw($expenseSql.' as bucket')
             ->selectRaw('COALESCE(SUM(amount), 0) as total')
             ->groupByRaw($expenseSql)
@@ -181,6 +206,18 @@ final class DashboardMetrics
             'income' => $incomeSeries,
             'expense' => $expenseSeries,
         ];
+    }
+
+    private function dateSql(string $column): string
+    {
+        if (! in_array($column, ['sold_at', 'purchased_at'], true)) {
+            throw new \InvalidArgumentException('Columna inválida.');
+        }
+
+        return match (DB::connection()->getDriverName()) {
+            'sqlite' => "date({$column})",
+            default => "DATE({$column})",
+        };
     }
 
     private function yearMonthSql(string $column): string

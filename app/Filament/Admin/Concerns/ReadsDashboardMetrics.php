@@ -22,12 +22,15 @@ trait ReadsDashboardMetrics
         $fromRaw = $this->pageFilters['from'] ?? null;
         $toRaw = $this->pageFilters['to'] ?? null;
 
-        if (is_string($fromRaw) && $fromRaw !== '') {
-            $from = CarbonImmutable::parse($fromRaw)->startOfDay();
+        $parsedFrom = $this->parseDate($fromRaw);
+        $parsedTo = $this->parseDate($toRaw);
+
+        if ($parsedFrom !== null) {
+            $from = $parsedFrom;
         }
 
-        if (is_string($toRaw) && $toRaw !== '') {
-            $to = CarbonImmutable::parse($toRaw)->startOfDay();
+        if ($parsedTo !== null) {
+            $to = $parsedTo;
         }
 
         if ($from->gt($to)) {
@@ -42,5 +45,22 @@ trait ReadsDashboardMetrics
         [$from, $to] = $this->dashboardScope();
 
         return new DashboardMetrics($from, $to);
+    }
+
+    private function parseDate(mixed $value): ?CarbonImmutable
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return CarbonImmutable::instance(\DateTimeImmutable::createFromInterface($value))->startOfDay();
+        }
+
+        if (! is_string($value) || $value === '') {
+            return null;
+        }
+
+        try {
+            return CarbonImmutable::parse($value)->startOfDay();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

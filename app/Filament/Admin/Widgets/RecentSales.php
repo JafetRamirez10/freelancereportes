@@ -11,13 +11,14 @@ use App\Support\Money;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 final class RecentSales extends TableWidget
 {
     use DoesNotPoll;
     use ReadsDashboardMetrics;
+
+    protected static bool $isLazy = false;
 
     protected static ?string $heading = 'Ventas recientes';
 
@@ -28,7 +29,7 @@ final class RecentSales extends TableWidget
     public function table(Table $table): Table
     {
         return $table
-            ->query(fn (): Builder => $this->recentQuery())
+            ->records(fn (): Collection => $this->recentSales())
             ->columns([
                 TextColumn::make('sold_at')
                     ->label('Fecha')
@@ -39,26 +40,25 @@ final class RecentSales extends TableWidget
                     ->label('Servicio'),
                 TextColumn::make('amount')
                     ->label('Monto')
-                    ->formatStateUsing(fn (string $state): string => Money::formatUsd($state)),
+                    ->formatStateUsing(fn (mixed $state): string => Money::formatUsd((string) $state)),
             ])
             ->paginated(false);
     }
 
     /**
-     * @return Builder<Sale>
+     * @return Collection<int, Sale>
      */
-    private function recentQuery(): Builder
+    private function recentSales(): Collection
     {
-        $data = $this->metrics()->all();
-
-        /** @var Collection<int, Sale> $recent */
-        $recent = $data['recent'];
-        $ids = $recent->pluck('id')->all();
+        [$from, $to] = $this->dashboardScope();
+        $limit = (int) config('freelancer.dashboard.recent_sales_limit', 10);
 
         return Sale::query()
             ->with(['client', 'serviceType'])
-            ->whereIn('id', $ids === [] ? [0] : $ids)
+            ->whereBetween('sold_at', [$from->toDateString(), $to->toDateString()])
             ->orderByDesc('sold_at')
-            ->orderByDesc('id');
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
     }
 }

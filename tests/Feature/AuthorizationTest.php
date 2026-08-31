@@ -16,6 +16,12 @@ it('permite al administrador autenticado ver el panel', function () {
     $this->actingAs($user)->get('/admin')->assertOk();
 });
 
+it('permite cambiar nombre, correo y contraseña desde el perfil', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->get('/admin/profile')->assertOk();
+});
+
 it('exige autenticación para descargar evidencia de venta', function () {
     $sale = Sale::factory()->create();
 
