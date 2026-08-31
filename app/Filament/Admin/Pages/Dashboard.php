@@ -4,42 +4,47 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Pages;
 
+use App\Filament\Admin\Widgets\IncomeExpenseChart;
+use App\Filament\Admin\Widgets\KpiOverview;
+use App\Filament\Admin\Widgets\RecentSales;
 use App\Services\DashboardMetrics;
 use Carbon\CarbonImmutable;
 use Filament\Forms\Components\DatePicker;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Pages\Dashboard\Concerns\HasFiltersForm;
-use Filament\Schemas\Components\Component;
-use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Widgets\Widget;
+use Filament\Widgets\WidgetConfiguration;
 
 final class Dashboard extends BaseDashboard
 {
     use HasFiltersForm;
 
-    protected string $view = 'filament.admin.pages.dashboard';
-
     protected static ?string $title = 'Dashboard';
 
     protected static ?string $navigationLabel = 'Inicio';
 
-    public function getFiltersForm(): Schema
+    public function mount(): void
     {
-        if ((! $this->isCachingSchemas) && $this->hasCachedSchema('filtersForm')) {
-            return $this->getSchema('filtersForm');
-        }
+        $this->filters = $this->normalizedFilters($this->filters);
+    }
 
-        $schema = $this->makeSchema()
-            ->columns([
-                'md' => 2,
-                'xl' => 2,
-            ])
-            ->extraAttributes(['wire:partial' => 'table-filters-form'])
-            ->live(debounce: 500)
-            ->statePath('filters');
+    public function booted(): void
+    {
+        $this->filters = $this->normalizedFilters($this->filters);
+    }
 
-        return $this->filtersForm($schema);
+    /**
+     * @return array<class-string<Widget> | WidgetConfiguration>
+     */
+    public function getWidgets(): array
+    {
+        return [
+            KpiOverview::class,
+            IncomeExpenseChart::class,
+            RecentSales::class,
+        ];
     }
 
     public function filtersForm(Schema $schema): Schema
@@ -70,33 +75,42 @@ final class Dashboard extends BaseDashboard
             ]);
     }
 
-    public function getWidgetsContentComponent(): Component
-    {
-        return Grid::make($this->getColumns())
-            ->extraAttributes([
-                'class' => 'fl-dashboard-widgets',
-            ])
-            ->schema(fn (): array => $this->getWidgetsSchemaComponents($this->getWidgets()));
-    }
-
     public function updatedFilters(): void
     {
-        if (is_array($this->filters)) {
-            foreach (['from', 'to'] as $key) {
-                $normalized = $this->dateOnly($this->filters[$key] ?? null);
-                if ($normalized !== ($this->filters[$key] ?? null)) {
-                    $this->filters[$key] = $normalized;
-                }
-            }
-        }
+        $this->filters = $this->normalizedFilters($this->filters);
 
         if ($this->persistsFiltersInSession()) {
             session()->put($this->getFiltersSessionKey(), $this->filters);
         }
     }
 
+    /**
+     * @param  array<string, mixed>|null  $filters
+     * @return array{from: string, to: string}
+     */
+    private function normalizedFilters(?array $filters): array
+    {
+        [$from, $to] = DashboardMetrics::defaultRange();
+
+        $fromStr = $this->dateOnly($filters['from'] ?? null) ?? $from->toDateString();
+        $toStr = $this->dateOnly($filters['to'] ?? null) ?? $to->toDateString();
+
+        if ($fromStr > $toStr) {
+            [$fromStr, $toStr] = [$toStr, $fromStr];
+        }
+
+        return [
+            'from' => $fromStr,
+            'to' => $toStr,
+        ];
+    }
+
     private function dateOnly(mixed $value): ?string
     {
+        if ($value instanceof \DateTimeInterface) {
+            return CarbonImmutable::instance(\DateTimeImmutable::createFromInterface($value))->toDateString();
+        }
+
         if (! is_string($value) || $value === '') {
             return null;
         }
@@ -108,7 +122,7 @@ final class Dashboard extends BaseDashboard
         try {
             return CarbonImmutable::parse($value)->toDateString();
         } catch (\Throwable) {
-            return $value;
+            return null;
         }
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers\Filament;
 
 use App\Filament\Admin\Pages\Dashboard;
+use App\Filament\Admin\Pages\EditProfile;
 use App\Filament\Admin\Widgets\IncomeExpenseChart;
 use App\Filament\Admin\Widgets\KpiOverview;
 use App\Filament\Admin\Widgets\RecentSales;
@@ -31,6 +32,7 @@ final class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->profile(EditProfile::class, isSimple: false)
             ->brandName('Freelancer')
             ->colors([
                 'primary' => Color::Teal,

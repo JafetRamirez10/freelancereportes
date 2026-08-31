@@ -31,5 +31,7 @@ it('calcula ingresos, gastos y neto del mes actual', function () {
 
     expect($data['income'])->toBe('200.00')
         ->and($data['expense'])->toBe('50.50')
-        ->and($data['net'])->toBe('149.50');
+        ->and($data['net'])->toBe('149.50')
+        ->and($data)->not->toHaveKey('recent')
+        ->and($data['series'])->toHaveKeys(['labels', 'income', 'expense']);
 });

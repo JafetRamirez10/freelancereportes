@@ -15,6 +15,8 @@ final class KpiOverview extends StatsOverviewWidget
     use DoesNotPoll;
     use ReadsDashboardMetrics;
 
+    protected static bool $isLazy = false;
+
     protected ?string $heading = 'Resumen del período';
 
     protected int|string|array $columnSpan = 'full';
@@ -29,9 +31,9 @@ final class KpiOverview extends StatsOverviewWidget
         $data = $this->metrics()->all();
 
         return [
-            Stat::make('Ingresos', Money::formatUsd($data['income'])),
-            Stat::make('Gastos', Money::formatUsd($data['expense'])),
-            Stat::make('Ganancia neta', Money::formatUsd($data['net'])),
+            Stat::make('Ingresos', Money::formatUsd((string) $data['income'])),
+            Stat::make('Gastos', Money::formatUsd((string) $data['expense'])),
+            Stat::make('Ganancia neta', Money::formatUsd((string) $data['net'])),
         ];
     }
 }
